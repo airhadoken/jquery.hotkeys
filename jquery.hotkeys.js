@@ -21,43 +21,61 @@ USAGE:
     // special options such as disableInIput
     $(document).bind('keydown', {combi:'Ctrl+x', disableInInput: true} , function() {});
     
+    // adjustments for multiple key commands (more than 2) or 2 modifiers such as shift+ctrl
+    
+    multiple keys can now be done as follows:
+    $(document).bind('keydown', 'ctrl+shift+up', function(){ alert('copy anyone?');});
+    
+    !!! However, if you doing a modifier and a modifier ONLY, you need to (currently) do as follows...
+    place modifiers in the correct sequence that they are added:
+    command
+    ctrl
+    alt
+    shift
+    and then add the last one as a special key as well.
+    
+    such as cmd+shift+shift or ctrl+alt+alt
+    
+    NOTE: many combo keys will interfere with screen reader software, make sure to research standard access keys
+    determining your combination of keys.asz-
+    
+    
+    
+    
 Note:
     This plugin wraps the following jQuery methods: $.fn.find, $.fn.bind and $.fn.unbind
 */
 
+//
+
+
 (function (jQuery){
     // keep reference to the original $.fn.bind, $.fn.unbind and $.fn.find
-    if (jQuery.fn.__bind__ === undefined){
-        jQuery.fn.__bind__ = jQuery.fn.bind;
-    }
-    if (jQuery.fn.__unbind__ === undefined){
-        jQuery.fn.__unbind__ = jQuery.fn.unbind;
-    }
-    if (jQuery.fn.__find__  === undefined){
-        jQuery.fn.__find__ = jQuery.fn.find;
-    }
+    jQuery.fn.__bind__ = jQuery.fn.bind;
+    jQuery.fn.__unbind__ = jQuery.fn.unbind;
+    jQuery.fn.__find__ = jQuery.fn.find;
     
     var hotkeys = {
         version: '0.7.9',
         override: /keypress|keydown|keyup/g,
         triggersMap: {},
         
-        specialKeys: { 27: 'esc', 9: 'tab', 32:'space', 13: 'return', 8:'backspace', 145: 'scroll', 
+        specialKeys: { 16: 'shift', 17: 'ctrl', 18: 'alt', 27: 'esc', 9: 'tab', 32:'space', 13: 'return', 8:'backspace', 145: 'scroll', 
             20: 'capslock', 144: 'numlock', 19:'pause', 45:'insert', 36:'home', 46:'del',
             35:'end', 33: 'pageup', 34:'pagedown', 37:'left', 38:'up', 39:'right',40:'down', 
             109: '-', 
             112:'f1',113:'f2', 114:'f3', 115:'f4', 116:'f5', 117:'f6', 118:'f7', 119:'f8', 
-            120:'f9', 121:'f10', 122:'f11', 123:'f12', 191: '/'},
+            120:'f9', 121:'f10', 122:'f11', 123:'f12', 191: '/', 91:'wincmd', 224:'cmd'},
         
-        shiftNums: { "`":"~", "1":"!", "2":"@", "3":"#", "4":"$", "5":"%", "6":"^", "7":"&", 
+        Nums: { "`":"~", "1":"!", "2":"@", "3":"#", "4":"$", "5":"%", "6":"^", "7":"&", 
             "8":"*", "9":"(", "0":")", "-":"_", "=":"+", ";":":", "'":"\"", ",":"<", 
             ".":">",  "/":"?",  "\\":"|" },
         
-        newTrigger: function (type, combi, callback) { 
+        newTrigger: function (type, combi, callback) { /* Here is your sample, use the ctrl key */
             // i.e. {'keyup': {'ctrl': {cb: callback, disableInInput: false}}}
             var result = {};
             result[type] = {};
-            result[type][combi] = {cb: callback, disableInInput: false, shortcut:combi};
+            result[type][combi] = {cb: callback, disableInInput: false};
             return result;
         }
     };
@@ -86,7 +104,17 @@ Note:
             var selectorId = ((this.prevObject && this.prevObject.query) || (this[0].id && this[0].id) || this[0]).toString();
             var hkTypes = type.split(' ');
             for (var x=0; x<hkTypes.length; x++){
-                delete hotkeys.triggersMap[selectorId][hkTypes[x]][combi];
+            	if(hotkeys.triggersMap[selectorId] && hotkeys.triggersMap[selectorId][hkTypes[x]] && hotkeys.triggersMap[selectorId][hkTypes[x]][combi])
+            		delete hotkeys.triggersMap[selectorId][hkTypes[x]][combi];
+            }
+        } else if (typeof type === 'undefined') {
+        	if(hotkeys.triggersMap[selectorId])
+        		delete hotkeys.triggersMap[selectorId];
+        } else if (typeof combi === 'undefined') {
+            var hkTypes = type.split(' ');
+        	for (var x=0; x<hkTypes.length; x++){
+            	if(hotkeys.triggersMap[selectorId] && hotkeys.triggersMap[selectorId][hkTypes[x]] && hotkeys.triggersMap[selectorId][hkTypes[x]])
+            		delete hotkeys.triggersMap[selectorId][hkTypes[x]];
             }
         }
         // call jQuery original unbind
@@ -148,15 +176,24 @@ Note:
                     // add attribute and call $.event.add per matched element
                     this.each(function(){
                         // jQuery wrapper for the current element
-                        var jqElem = jQuery(this);
+                        var jqElem = jQuery(this),
+						    newSelectorId = selectorId;
                         
                         // element already associated with another collection
-                        if (jqElem.attr('hkId') && jqElem.attr('hkId') !== selectorId){
-                            selectorId = jqElem.attr('hkId') + ";" + selectorId;
-                        }
-                        jqElem.attr('hkId', selectorId);
+						// branching modified to prevent duplicates 04/02/2012 --BM
+						var hkId = jqElem.attr('hkId');
+                        if (hkId) {
+							newSelectorId = hkId;
+							if($(hkId
+								.split(";"))
+								.filter(function(i, item) { return item === selectorId })
+								.length == 0){
+                            newSelectorId = newSelectorId + ";" + selectorId;
+						  }
+						}
+                        jqElem.attr('hkId', newSelectorId);
                     });
-                    result = this.__bind__(handle.join(' '), data, hotkeys.handler)
+                    result = this.__bind__(handle.join(' '), data, hotkeys.handler);
                 }
             }
             return result;
@@ -179,7 +216,7 @@ Note:
         var target = hotkeys.findElement(event.currentTarget), 
             jTarget = jQuery(target),
             ids = jTarget.attr('hkId');
-        
+
         if(ids){
             ids = ids.split(';');
             var code = event.which,
@@ -187,34 +224,43 @@ Note:
                 special = hotkeys.specialKeys[code],
                 // prevent f5 overlapping with 't' (or f4 with 's', etc.)
                 character = !special && String.fromCharCode(code).toLowerCase(),
+                command = event.metaKey,
                 shift = event.shiftKey,
                 ctrl = event.ctrlKey,            
                 // patch for jquery 1.2.5 && 1.2.6 see more at:  
                 // http://groups.google.com/group/jquery-en/browse_thread/thread/83e10b3bb1f1c32b
-                alt = event.altKey || event.originalEvent.altKey,
+                alt = event.altKey || (event.originalEvent &&event.originalEvent.altKey),
                 mapPoint = null;
 
             for (var x=0; x < ids.length; x++){
                 if (hotkeys.triggersMap[ids[x]][type]){
                     mapPoint = hotkeys.triggersMap[ids[x]][type];
-                    break;
-                }
-            }
+                    //break;
+                //}
+            //}
             
             //find by: id.type.combi.options            
-            if (mapPoint){ 
+            //if (mapPoint){ 
                 var trigger;
                 // event type is associated with the hkId
-                if(!shift && !ctrl && !alt) { // No Modifiers
+                if(!shift && !ctrl && !alt && !command) { // No Modifiers
+					if(event.data.combi != special && event.data.combi != character) continue; //Prevent wrong combis from firing --BM
                     trigger = mapPoint[special] ||  (character && mapPoint[character]);
                 }
                 else{
                     // check combinations (alt|ctrl|shift+anything)
                     var modif = '';
+                    
+                    if(command) modif +='cmd+';
                     if(alt) modif +='alt+';
                     if(ctrl) modif+= 'ctrl+';
                     if(shift) modif += 'shift+';
                     // modifiers + special keys or modifiers + character or modifiers + shift character or just shift character
+					if(event.data.combi != modif+special 
+					   && event.data.combi != modif+character
+					   && event.data.combi != modif+hotkeys.shiftNums[character]
+					   && event.data.combi != 'shift+' + +hotkeys.shiftNums[character])
+					   continue; //Prevent wrong combi from firing --BM
                     trigger = mapPoint[modif+special];
                     if (!trigger){
                         if (character){
@@ -227,8 +273,8 @@ Note:
                 }
                 if (trigger){
                     var result = false;
-                    for (var x=0; x < trigger.length; x++){
-                        if(trigger[x].disableInInput){
+                    for (var y=0; y < trigger.length; y++){
+                        if(trigger[y].disableInInput){
                             // double check event.currentTarget and event.target
                             var elem = jQuery(event.target);
                             if (jTarget.is("input") || jTarget.is("textarea") || jTarget.is("select") 
@@ -237,11 +283,14 @@ Note:
                             }
                         }                       
                         // call the registered callback function
-                        result = result || trigger[x].cb.apply(this, [event]);
+						window.console && console.log("id:", ids[x], "; target:", jTarget);
+                        result = result || trigger[y].cb.apply(this, [event]);
                     }
-                    return result;
+                    //return result;
                 }
-            }
+			} //matches if(hotkKeys.triggersMap... --BM
+		} //matches for (var x=0; x < ids.length; x++){ --BM
+           // }
         }
     };
     // place it under window so it can be extended and overridden by others
